@@ -1,6 +1,7 @@
+from datetime import datetime, timezone as dt_timezone
 import requests
-from dateutil.parser import isoparse   # ✅ para manejar fecha ISO con zona horaria
-from django.utils import timezone       # ✅ para fechas "aware"
+from dateutil.parser import isoparse
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -16,9 +17,10 @@ class DevolucionViewSet(viewsets.ModelViewSet):
     queryset = Devolucion.objects.all()
     serializer_class = DevolucionSerializer
 
+    # 🟢 CREAR DEVOLUCIÓN
     def create(self, request, *args, **kwargs):
         """
-        Crea una devolución, verificando estado del préstamo e inventario.
+        Crea una devolución, verificando el estado del préstamo e inventario.
         """
         try:
             data = request.data
@@ -39,13 +41,14 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                 return Response({"error": "No se pudo verificar el equipo."}, status=status.HTTP_400_BAD_REQUEST)
             equipo = equipo_resp.json()
 
-            if equipo.get("estado", "").lower() == "disponible":
+            # 3️⃣ Verificar si el equipo ya está disponible
+            if equipo["estado"].lower() == "disponible":
                 return Response({
                     "mensaje": "El equipo ya fue devuelto y está disponible."
                 }, status=status.HTTP_200_OK)
 
-            # 3️⃣ Verificar vencimiento del préstamo
-            fecha_actual = timezone.now()  # ✅ corregido
+            # 4️⃣ Verificar vencimiento del préstamo
+            fecha_actual = timezone.now().astimezone(dt_timezone.utc)
             devolucion = Devolucion()
             vencido = devolucion.verificarTardanza(prestamo, fecha_actual)
             sancion = 0
@@ -57,7 +60,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                         "mensaje": "El préstamo está vencido. Ingrese sanción en puntos para continuar."
                     }, status=status.HTTP_400_BAD_REQUEST)
 
-            # 4️⃣ Crear la devolución
+            # 5️⃣ Crear la devolución
             nueva_devolucion = {
                 "prestamo_id": prestamo_id,
                 "recibidoPor_id": data.get("recibidoPor_id"),
@@ -71,7 +74,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
 
-            # 5️⃣ Actualizar estados en otros microservicios
+            # 6️⃣ Actualizar estados en otros microservicios
             requests.patch(f"{API_PRESTAMOS}{prestamo_id}/", json={"estado": "Cerrado"})
             requests.patch(f"{API_INVENTARIO}{equipo_id}/", json={"estado": "Disponible"})
 
@@ -86,7 +89,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                 "detalle": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # 🔍 Endpoint para verificar estado antes de devolver
+    # 🔍 VERIFICAR ESTADO DEL PRÉSTAMO
     @action(detail=False, methods=['get'], url_path='verificar/(?P<prestamo_id>[^/.]+)')
     def verificar(self, request, prestamo_id=None):
         """
@@ -107,14 +110,14 @@ class DevolucionViewSet(viewsets.ModelViewSet):
             equipo = equipo_resp.json()
 
             # 3️⃣ Si el equipo ya está disponible
-            if equipo.get("estado", "").lower() == "disponible":
+            if equipo["estado"].lower() == "disponible":
                 return Response({
                     "estado": "disponible",
                     "mensaje": "El equipo ya fue devuelto y está disponible."
                 }, status=status.HTTP_200_OK)
 
             # 4️⃣ Verificar si el préstamo está vencido
-            fecha_actual = timezone.now()  # ✅ corregido
+            fecha_actual = timezone.now().astimezone(dt_timezone.utc)
             fecha_compromiso = prestamo.get("fecha_compromiso")
 
             if not fecha_compromiso:
@@ -123,9 +126,11 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             fecha_limite = isoparse(fecha_compromiso)
+            # Asegurar que ambas fechas sean aware en UTC
+            if fecha_limite.tzinfo is None:
+                fecha_limite = fecha_limite.replace(tzinfo=dt_timezone.utc)
 
-            # ✅ Comparación segura entre fechas aware
-            if fecha_actual.astimezone(timezone.utc) > fecha_limite.astimezone(timezone.utc):
+            if fecha_actual > fecha_limite:
                 return Response({
                     "estado": "vencido",
                     "mensaje": "El préstamo está vencido. Se requiere ingresar sanción en puntos."
