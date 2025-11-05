@@ -8,7 +8,7 @@ from .serializers import DevolucionSerializer
 
 # 🌐 URLs de tus microservicios en la nube (Azure)
 API_PRESTAMOS = "https://microservicio-gestionprestamo-fmcxb0gvcshag6av.brazilsouth-01.azurewebsites.net/api/prestamos/"
-API_INVEMTARIO = "https://microservicio-gestioninventario-e7byadgfgdhpfyen.brazilsouth-01.azurewebsites.net/api/equipos/"
+API_INVENTARIO = "https://microservicio-gestioninventario-e7byadgfgdhpfyen.brazilsouth-01.azurewebsites.net/api/equipos/"
 
 class DevolucionViewSet(viewsets.ModelViewSet):
     queryset = Devolucion.objects.all()
@@ -64,8 +64,8 @@ class DevolucionViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
 
         # 5️⃣ Actualizar otros microservicios
-        requests.patch(f"{API_PRESTAMOS}{prestamo_id}/", json={"estado": "devuelto"})
-        requests.patch(f"{API_INVENTARIO}{equipo_id}/", json={"estado": "disponible"})
+        requests.patch(f"{API_PRESTAMOS}{prestamo_id}/", json={"estado": "Cerrado"})
+        requests.patch(f"{API_INVENTARIO}{equipo_id}/", json={"estado": "Disponible"})
 
         return Response({
             "mensaje": "Devolución registrada correctamente.",
@@ -93,7 +93,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         fecha_actual = datetime.now()
-        fecha_limite = datetime.fromisoformat(prestamo["fecha_devolucion_programada"])
+        fecha_limite = datetime.fromisoformat(prestamo["fecha_compromiso"])
 
         if fecha_actual > fecha_limite:
             return Response({

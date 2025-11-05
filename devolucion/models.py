@@ -12,7 +12,7 @@ class Devolucion(models.Model):
 
     def verificarTardanza(self, prestamo_data: dict, fecha_actual: datetime) -> bool:
         """Verifica si el préstamo está vencido comparando fechas."""
-        fecha_limite = datetime.fromisoformat(prestamo_data["fecha_devolucion_programada"])
+        fecha_limite = datetime.fromisoformat(prestamo_data["fecha_compromiso"])
         return fecha_actual > fecha_limite
 
     def __str__(self):
