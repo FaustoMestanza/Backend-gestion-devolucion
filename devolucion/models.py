@@ -1,7 +1,6 @@
 from django.db import models
-from django.utils import timezone
 from dateutil.parser import isoparse
-from datetime import timezone as dt_timezone  # ✅ Import correcto para UTC
+from datetime import timezone as dt_timezone   # ✅ usar el UTC nativo de datetime
 
 class Devolucion(models.Model):
     prestamo_id = models.IntegerField()
@@ -13,12 +12,21 @@ class Devolucion(models.Model):
     sancion_puntos = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     def verificarTardanza(self, prestamo_data: dict, fecha_actual):
-        """Verifica si el préstamo está vencido comparando fechas con zonas horarias seguras."""
+        """
+        Verifica si el préstamo está vencido comparando fechas (ambas con tz UTC).
+        """
         fecha_limite = isoparse(prestamo_data["fecha_compromiso"])
 
-        # ✅ Convertir ambas fechas a UTC correctamente
-        fecha_limite = fecha_limite.astimezone(dt_timezone.utc)
-        fecha_actual = fecha_actual.astimezone(dt_timezone.utc)
+        # normalizamos ambas a aware-UTC
+        if fecha_limite.tzinfo is None:
+            fecha_limite = fecha_limite.replace(tzinfo=dt_timezone.utc)
+        else:
+            fecha_limite = fecha_limite.astimezone(dt_timezone.utc)
+
+        if fecha_actual.tzinfo is None:
+            fecha_actual = fecha_actual.replace(tzinfo=dt_timezone.utc)
+        else:
+            fecha_actual = fecha_actual.astimezone(dt_timezone.utc)
 
         return fecha_actual > fecha_limite
 
