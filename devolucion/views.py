@@ -8,7 +8,6 @@ from rest_framework.response import Response
 from .models import Devolucion
 from .serializers import DevolucionSerializer
 
-# 🌐 URLs de los microservicios externos
 API_PRESTAMOS = "https://microservicio-gestionprestamo-fmcxb0gvcshag6av.brazilsouth-01.azurewebsites.net/api/prestamos/"
 API_INVENTARIO = "https://microservicio-gestioninventario-e7byadgfgdhpfyen.brazilsouth-01.azurewebsites.net/api/equipos/"
 
@@ -19,9 +18,6 @@ class DevolucionViewSet(viewsets.ModelViewSet):
 
     # 🟢 CREAR DEVOLUCIÓN
     def create(self, request, *args, **kwargs):
-        """
-        Crea una devolución, verificando el estado del préstamo e inventario.
-        """
         try:
             data = request.data
             prestamo_id = data.get('prestamo_id')
@@ -33,7 +29,6 @@ class DevolucionViewSet(viewsets.ModelViewSet):
             prestamo = prestamo_resp.json()
 
             equipo_id = prestamo.get("equipo_id")
-            usuario_id = prestamo.get("usuario_id")
 
             # 2️⃣ Consultar equipo en inventario
             equipo_resp = requests.get(f"{API_INVENTARIO}{equipo_id}/")
@@ -41,13 +36,12 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                 return Response({"error": "No se pudo verificar el equipo."}, status=status.HTTP_400_BAD_REQUEST)
             equipo = equipo_resp.json()
 
-            # 3️⃣ Verificar si el equipo ya está disponible
             if equipo["estado"].lower() == "disponible":
                 return Response({
                     "mensaje": "El equipo ya fue devuelto y está disponible."
                 }, status=status.HTTP_200_OK)
 
-            # 4️⃣ Verificar vencimiento del préstamo
+            # 3️⃣ Verificar vencimiento
             fecha_actual = timezone.now().astimezone(dt_timezone.utc)
             devolucion = Devolucion()
             vencido = devolucion.verificarTardanza(prestamo, fecha_actual)
@@ -60,7 +54,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                         "mensaje": "El préstamo está vencido. Ingrese sanción en puntos para continuar."
                     }, status=status.HTTP_400_BAD_REQUEST)
 
-            # 5️⃣ Crear la devolución
+            # 4️⃣ Crear devolución
             nueva_devolucion = {
                 "prestamo_id": prestamo_id,
                 "recibidoPor_id": data.get("recibidoPor_id"),
@@ -74,7 +68,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
 
-            # 6️⃣ Actualizar estados en otros microservicios
+            # 5️⃣ Actualizar otros microservicios
             requests.patch(f"{API_PRESTAMOS}{prestamo_id}/", json={"estado": "Cerrado"})
             requests.patch(f"{API_INVENTARIO}{equipo_id}/", json={"estado": "Disponible"})
 
@@ -92,9 +86,6 @@ class DevolucionViewSet(viewsets.ModelViewSet):
     # 🔍 VERIFICAR ESTADO DEL PRÉSTAMO
     @action(detail=False, methods=['get'], url_path='verificar/(?P<prestamo_id>[^/.]+)')
     def verificar(self, request, prestamo_id=None):
-        """
-        Verifica si un préstamo está activo, vencido o ya devuelto.
-        """
         try:
             # 1️⃣ Obtener préstamo
             prestamo_resp = requests.get(f"{API_PRESTAMOS}{prestamo_id}/")
@@ -109,7 +100,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                 return Response({"error": "No se pudo verificar el equipo."}, status=status.HTTP_400_BAD_REQUEST)
             equipo = equipo_resp.json()
 
-            # 3️⃣ Si el equipo ya está disponible
+            # 3️⃣ Si ya está disponible
             if equipo["estado"].lower() == "disponible":
                 return Response({
                     "estado": "disponible",
@@ -126,7 +117,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             fecha_limite = isoparse(fecha_compromiso)
-            # Asegurar que ambas fechas sean aware en UTC
+            # 🔧 Asegurar que tenga tzinfo UTC
             if fecha_limite.tzinfo is None:
                 fecha_limite = fecha_limite.replace(tzinfo=dt_timezone.utc)
 
@@ -136,7 +127,6 @@ class DevolucionViewSet(viewsets.ModelViewSet):
                     "mensaje": "El préstamo está vencido. Se requiere ingresar sanción en puntos."
                 }, status=status.HTTP_200_OK)
 
-            # 5️⃣ Si todo está correcto
             return Response({
                 "estado": "activo",
                 "mensaje": "El préstamo está activo. Puede registrar la devolución sin sanción."
