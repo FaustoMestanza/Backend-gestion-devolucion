@@ -1,12 +1,12 @@
 from datetime import datetime
 import requests
+from dateutil.parser import isoparse   # 👈 CORRECCIÓN
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Devolucion
 from .serializers import DevolucionSerializer
 
-# 🌐 URLs de tus microservicios en la nube (Azure)
 API_PRESTAMOS = "https://microservicio-gestionprestamo-fmcxb0gvcshag6av.brazilsouth-01.azurewebsites.net/api/prestamos/"
 API_INVENTARIO = "https://microservicio-gestioninventario-e7byadgfgdhpfyen.brazilsouth-01.azurewebsites.net/api/equipos/"
 
@@ -64,7 +64,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
 
         # 5️⃣ Actualizar otros microservicios
-        requests.patch(f"{API_PRESTAMOS}{prestamo_id}/", json={"estado": "Cerrado"})
+        requests.patch(f"{API_PRESTAMOS}{prestamo_id}/", json={"estado": "Cerrado"})  # 👈 Confirma formato exacto
         requests.patch(f"{API_INVENTARIO}{equipo_id}/", json={"estado": "Disponible"})
 
         return Response({
@@ -72,7 +72,6 @@ class DevolucionViewSet(viewsets.ModelViewSet):
             "datos": serializer.data
         }, status=status.HTTP_201_CREATED)
 
-    # Endpoint adicional: verificar estado antes de devolver
     @action(detail=False, methods=['get'], url_path='verificar/(?P<prestamo_id>[^/.]+)')
     def verificar(self, request, prestamo_id=None):
         prestamo_resp = requests.get(f"{API_PRESTAMOS}{prestamo_id}/")
@@ -93,7 +92,7 @@ class DevolucionViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         fecha_actual = datetime.now()
-        fecha_limite = datetime.fromisoformat(prestamo["fecha_compromiso"])
+        fecha_limite = isoparse(prestamo["fecha_compromiso"])  # 👈 corregido
 
         if fecha_actual > fecha_limite:
             return Response({
