@@ -35,7 +35,7 @@ DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://microservicio-gestioninventario-e7byadgfgdhpfyen.brazilsouth-01.azurewebsites.net"
+    "microservicio-gestiondevolucion-ddbychb0a8anbwc8.brazilsouth-01.azurewebsites.net"
 ]
 
 
